@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bun POS</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 2rem; }
+      h1 { margin-bottom: 0.25rem; }
+      small { color: #666; }
+      table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
+      th, td { border: 1px solid #ddd; padding: 8px; }
+      th { background: #fafafa; text-align: left; }
+      form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 1rem; }
+      input, button { padding: 8px; }
+      .row { display: flex; gap: 8px; align-items: center; margin-top: 1rem; }
+      code { background: #f6f8fa; padding: .2rem .4rem; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <h1>POS System</h1>
+    <small>Built with <code>Bun</code> + <code>PostgreSQL</code></small>
+
+    <div class="row">
+      <button id="refreshProducts">Refresh Products</button>
+      <button id="refreshSales">Refresh Sales</button>
+    </div>
+
+    <h2>Products</h2>
+    <form id="addProduct">
+      <input name="sku" placeholder="SKU" required />
+      <input name="name" placeholder="Name" required />
+      <input name="price_cents" placeholder="Price (cents)" type="number" min="0" required />
+      <input name="stock_qty" placeholder="Stock Qty" type="number" min="0" required />
+      <button type="submit">Add Product</button>
+    </form>
+
+    <table id="productsTable">
+      <thead>
+        <tr><th>ID</th><th>SKU</th><th>Name</th><th>Price</th><th>Stock</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <h2>Create Sale</h2>
+    <form id="createSale">
+      <input name="items" placeholder='Items JSON e.g. [{"productId":1,"quantity":2}]' />
+      <button type="submit">Create Sale</button>
+    </form>
+
+    <h2>Recent Sales</h2>
+    <table id="salesTable">
+      <thead>
+        <tr><th>ID</th><th>Created</th><th>Total (cents)</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <script>
+      const $ = (sel) => document.querySelector(sel);
+
+      async function fetchJson(url, opts) {
+        const res = await fetch(url, Object.assign({ headers: { 'content-type': 'application/json' } }, opts || {}));
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+      }
+
+      async function loadProducts() {
+        const data = await fetchJson('/api/products');
+        const tbody = $('#productsTable tbody');
+        tbody.innerHTML = '';
+        data.forEach(p => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${p.id}</td><td>${p.sku}</td><td>${p.name}</td><td>${(p.price_cents/100).toFixed(2)}</td><td>${p.stock_qty}</td>`;
+          tbody.appendChild(tr);
+        });
+      }
+
+      async function loadSales() {
+        const data = await fetchJson('/api/sales');
+        const tbody = $('#salesTable tbody');
+        tbody.innerHTML = '';
+        data.forEach(s => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${s.id}</td><td>${new Date(s.created_at).toLocaleString()}</td><td>${(s.total_cents/100).toFixed(2)}</td>`;
+          tbody.appendChild(tr);
+        });
+      }
+
+      $('#refreshProducts').addEventListener('click', loadProducts);
+      $('#refreshSales').addEventListener('click', loadSales);
+
+      $('#addProduct').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const body = Object.fromEntries(fd.entries());
+        body.price_cents = parseInt(body.price_cents, 10);
+        body.stock_qty = parseInt(body.stock_qty, 10);
+        await fetchJson('/api/products', { method: 'POST', body: JSON.stringify(body) });
+        e.target.reset();
+        await loadProducts();
+      });
+
+      $('#createSale').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const text = new FormData(e.target).get('items');
+        let items = [];
+        try { items = JSON.parse(text || '[]'); } catch {}
+        await fetchJson('/api/sales', { method: 'POST', body: JSON.stringify({ items }) });
+        e.target.reset();
+        await Promise.all([loadProducts(), loadSales()]);
+      });
+
+      loadProducts().catch(console.error);
+      loadSales().catch(console.error);
+    </script>
+  </body>
+</html>
