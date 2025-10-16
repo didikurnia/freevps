@@ -1,0 +1,17 @@
+{
+  "name": "bun-pos",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --hot run src/server.ts",
+    "start": "bun run src/server.ts",
+    "migrate": "bun run scripts/migrate.ts",
+    "seed": "bun run scripts/seed.ts"
+  },
+  "dependencies": {
+    "@elysiajs/static": "^1.1.1",
+    "elysia": "^1.1.16",
+    "postgres": "^3.4.4"
+  }
+}
